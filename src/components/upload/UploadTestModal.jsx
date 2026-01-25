@@ -12,7 +12,7 @@ import { cn } from '../../lib/utils'
 const EXAM_TYPES = ['JEE', 'NEET', 'CAT', 'UPSC', 'Custom']
 const SOURCES = ['Manual', 'Coaching Institute', 'Platform Export']
 
-export function UploadTestModal({ isOpen, onClose }) {
+export function UploadTestModal({ isOpen, onClose, onFileUploadSuccess }) {
   const queryClient = useQueryClient()
   const fileInputRef = useRef(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -63,6 +63,20 @@ export function UploadTestModal({ isOpen, onClose }) {
     },
     onSuccess: (response) => {
       setShowSuccessToast(true)
+      
+      // Call the callback with file data
+      if (onFileUploadSuccess) {
+        onFileUploadSuccess({
+          file: formData.file,
+          fileName: formData.fileName,
+          testName: formData.testName,
+          testDate: formData.testDate,
+          examType: formData.examType,
+          source: formData.source,
+          response: response,
+        })
+      }
+      
       // Invalidate queries to refresh dashboard
       queryClient.invalidateQueries({ queryKey: ['summary'] })
       queryClient.invalidateQueries({ queryKey: ['recommendations'] })
