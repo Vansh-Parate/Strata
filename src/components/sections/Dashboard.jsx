@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Line, LineChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from 'recharts'
 import { fetchSummary } from '../../services/analytics'
-import { fetchRecommendations } from '../../services/recommendations'
+import { fetchExamRecommendations } from '../../services/recommendations'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '../ui/chart'
 
 const fallbackStats = [
@@ -43,7 +43,7 @@ export function Dashboard() {
 
   const recsQuery = useQuery({
     queryKey: ['recommendations'],
-    queryFn: async () => fetchRecommendations({ activeOnly: true }),
+    queryFn: async () => fetchExamRecommendations(),
   })
 
   const summary = summaryQuery.data?.success ? summaryQuery.data.data : null
@@ -168,34 +168,26 @@ export function Dashboard() {
             </span>
           </div>
           <ul className="space-y-3 text-sm">
-            {(recsQuery.data?.success ? recsQuery.data.data : []).slice(0, 3).map(
-              rec => (
+            {recsQuery.data?.success && recsQuery.data.data?.weaknesses ? (
+              // Show weaknesses from recommendation
+              recsQuery.data.data.weaknesses.slice(0, 3).map((weakness, idx) => (
                 <li
-                  key={rec.id || rec.recommendation_id}
+                  key={idx}
                   className="flex items-start justify-between gap-3"
                 >
                   <div>
-                    <p className="font-medium">{rec.focusArea || rec.focus_area}</p>
-                    <p className="text-xs text-[#78716C] line-clamp-2">
-                      {rec.reasoning}
+                    <p className="font-medium">{weakness}</p>
+                    <p className="text-xs text-[#78716C]">
+                      Priority area for improvement
                     </p>
                   </div>
-                  <span
-                    className={
-                      'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium text-white ' +
-                      ((rec.priority === 'high' || rec.priority === 'HIGH')
-                        ? 'bg-red-600'
-                        : (rec.priority === 'medium' || rec.priority === 'MEDIUM')
-                        ? 'bg-amber-600'
-                        : 'bg-blue-600')
-                    }
-                  >
-                    {rec.priority?.charAt(0).toUpperCase() + rec.priority?.slice(1).toLowerCase()}
+                  <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700">
+                    High
                   </span>
                 </li>
-              )
-            )}
-            {!recsQuery.data?.success && (
+              ))
+            ) : (
+              // Fallback: default focus areas
               <>
                 <li className="flex items-start justify-between gap-3">
                   <div>

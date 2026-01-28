@@ -266,6 +266,8 @@ async function main() {
       await prisma.recommendation.create({
         data: {
           userId: user.id,
+          subject: template.focusArea.split('→')[0]?.trim() || 'General',
+          topic: template.focusArea.split('→')[1]?.trim() || template.focusArea,
           generatedAt,
           focusArea: template.focusArea,
           priority: r === 0 ? 'high' : r === 1 ? 'medium' : 'low',

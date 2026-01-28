@@ -137,6 +137,12 @@ router.post('/api/demo/generate-test', async (req, res) => {
       data: attempts.map(a => ({ ...a, testSessionId: session.id })),
     })
 
+    try {
+      console.log('[DEMO] Demo test created, recommendations will be recomputed via API')
+    } catch (recError) {
+      console.error('Error in demo:', recError)
+    }
+
     res.json({
       success: true,
       error: null,
@@ -151,122 +157,6 @@ router.post('/api/demo/generate-test', async (req, res) => {
     })
   } catch (error) {
     console.error('Error generating demo test:', error)
-    res.status(500).json({ success: false, error: error.message, data: null })
-  }
-})
-
-// Generate recommendations for a user
-router.post('/api/demo/generate-recommendations', async (req, res) => {
-  try {
-    const { user_id: userId } = req.body
-
-    if (!userId) {
-      return res.status(400).json({ success: false, error: 'Missing user_id', data: null })
-    }
-
-    const user = await prisma.user.findUnique({ where: { id: userId } })
-    if (!user) {
-      return res.status(404).json({ success: false, error: 'User not found', data: null })
-    }
-
-    const allAttempts = await prisma.questionAttempt.findMany({
-      where: { userId },
-    })
-
-    if (allAttempts.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'No attempts found. Generate test data first.',
-        data: null,
-      })
-    }
-
-    // Analyze topic performance
-    const topicStats = {}
-    allAttempts.forEach(attempt => {
-      const topic = attempt.questionMetadata.topic
-      if (!topicStats[topic]) {
-        topicStats[topic] = { total: 0, correct: 0 }
-      }
-      topicStats[topic].total++
-      if (attempt.correctness) topicStats[topic].correct++
-    })
-
-    // Find weakest topics
-    const topicAccuracies = Object.entries(topicStats).map(([topic, stats]) => ({
-      topic,
-      accuracy: stats.total > 0 ? (stats.correct / stats.total) * 100 : 0,
-      attempts: stats.total,
-    }))
-
-    topicAccuracies.sort((a, b) => a.accuracy - b.accuracy)
-
-    const recommendationTemplates = [
-      {
-        focusArea: `${topicAccuracies[0]?.topic || 'Weak Area'} Fundamentals`,
-        reasoning: `You've attempted ${topicAccuracies[0]?.attempts || 0} questions in ${topicAccuracies[0]?.topic || 'this area'} with ${Math.round(topicAccuracies[0]?.accuracy || 0)}% accuracy. Focus on building foundational understanding.`,
-        actionSteps: [
-          'Review core concepts and definitions',
-          'Practice 10 basic problems',
-          'Take a focused quiz on fundamentals',
-        ],
-      },
-      {
-        focusArea: `${topicAccuracies[1]?.topic || 'Problem Area'} Practice`,
-        reasoning: `Your performance in ${topicAccuracies[1]?.topic || 'this area'} shows room for improvement. Consistent practice will help build confidence.`,
-        actionSteps: [
-          'Identify common mistake patterns',
-          'Work through 15 practice problems',
-          'Review solutions and explanations',
-        ],
-      },
-    ]
-
-    const recommendations = []
-    for (let i = 0; i < Math.min(2, topicAccuracies.length); i++) {
-      const template = recommendationTemplates[i]
-      const topic = topicAccuracies[i]
-
-      const rec = await prisma.recommendation.create({
-        data: {
-          userId,
-          generatedAt: new Date(),
-          focusArea: template.focusArea,
-          priority: i === 0 ? 'high' : 'medium',
-          reasoning: template.reasoning,
-          evidence: {
-            recent_attempts: topic.attempts,
-            accuracy: topic.accuracy / 100,
-            avg_confidence: getRandomFloat(2.5, 4.0),
-            avg_time_seconds: getRandomInt(120, 300),
-            mistake_breakdown: {
-              conceptual: getRandomInt(3, 8),
-              calculation: getRandomInt(1, 4),
-              guess: getRandomInt(0, 2),
-            },
-            trend: 'stable',
-          },
-          actionSteps: template.actionSteps,
-          confidenceScore: getRandomInt(70, 90),
-          dataPointCount: topic.attempts,
-          followed: false,
-        },
-      })
-
-      recommendations.push(rec)
-    }
-
-    res.json({
-      success: true,
-      error: null,
-      data: {
-        count: recommendations.length,
-        recommendations,
-        message: `Generated ${recommendations.length} recommendations based on performance data`,
-      },
-    })
-  } catch (error) {
-    console.error('Error generating recommendations:', error)
     res.status(500).json({ success: false, error: error.message, data: null })
   }
 })

@@ -22,6 +22,14 @@ export async function uploadTest(file, metadata) {
           ? metadata.testDate.toISOString().split('T')[0]
           : metadata.testDate
 
+        console.log('[UPLOAD_SERVICE] Sending request with:', {
+          csvContentLength: csvContent.length,
+          testName: metadata.testName,
+          testDate,
+          examType: metadata.examType,
+          source: metadata.source,
+        })
+
         const response = await api.post('/api/upload-test', {
           csvContent,
           testName: metadata.testName,
@@ -30,14 +38,18 @@ export async function uploadTest(file, metadata) {
           source: metadata.source,
         })
 
+        console.log('[UPLOAD_SERVICE] Response:', response)
         resolve(response)
       } catch (error) {
+        console.error('[UPLOAD_SERVICE] Error:', error)
         reject(error)
       }
     }
 
     reader.onerror = () => {
-      reject(new Error('Failed to read file'))
+      const error = new Error('Failed to read file')
+      console.error('[UPLOAD_SERVICE]', error)
+      reject(error)
     }
 
     reader.readAsText(file)

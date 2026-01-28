@@ -8,6 +8,7 @@ import { authenticateToken } from './middleware/auth.js'
 import demoRoutes from './routes/demo.js'
 import authRoutes from './routes/auth.js'
 import uploadRoutes from './routes/upload.js'
+import recommendationsRoutes from './routes/recommendations.js'
 
 const prisma = new PrismaClient()
 const app = express()
@@ -31,6 +32,7 @@ app.use(passport.session())
 // Routes
 app.use('/api/v1/auth', authRoutes)
 app.use('/api', uploadRoutes)
+app.use('/api/recommendations', recommendationsRoutes)
 app.use(demoRoutes)
 
 // Health check
@@ -328,6 +330,10 @@ app.post('/api/attempts/bulk', authenticateToken, async (req, res) => {
       skipDuplicates: true,
     })
 
+    // NOTE: Do NOT trigger recommendations here.
+    // Recommendations are ONLY generated after successful uploads via /api/upload-test
+    // This endpoint is for backward compatibility only.
+
     res.json({ success: true, error: null, data: { count: result.count } })
   } catch (error) {
     console.error('Error creating bulk attempts:', error)
@@ -335,26 +341,32 @@ app.post('/api/attempts/bulk', authenticateToken, async (req, res) => {
   }
 })
 
-// Recommendations endpoints
-app.get('/api/recommendations', authenticateToken, async (req, res) => {
+app.post('/admin/recompute-recommendations', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.id
-    const { active_only: activeOnly = 'true' } = req.query
+    const adminKey = process.env.ADMIN_API_KEY
+    if (adminKey && req.headers['x-admin-key'] !== adminKey) {
+      return res.status(403).json({ success: false, error: 'Invalid admin key', data: null })
+    }
+    const { userId, recomputeAll } = req.body || {}
 
-    const where = {
-      userId,
-      ...(activeOnly === 'true' ? { followed: false } : {}),
+    if (recomputeAll) {
+      return res.json({ 
+        success: true, 
+        error: null, 
+        data: { message: 'Recommendations are now computed via API endpoints' } 
+      })
     }
 
-    const recommendations = await prisma.recommendation.findMany({
-      where,
-      orderBy: { generatedAt: 'desc' },
-    })
+    const targetUserId = userId || req.user.id
 
-    res.json({ success: true, error: null, data: recommendations })
+    res.json({
+      success: true,
+      error: null,
+      data: { userId: targetUserId, message: 'Use GET /api/recommendations/:examType to fetch recommendations' },
+    })
   } catch (error) {
-    console.error('Error fetching recommendations:', error)
-    res.status(500).json({ success: false, error: error.message, data: [] })
+    console.error('Error recomputing recommendations:', error)
+    res.status(500).json({ success: false, error: error.message, data: null })
   }
 })
 

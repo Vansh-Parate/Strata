@@ -17,16 +17,27 @@ async function apiRequest(endpoint, options = {}) {
   }
 
   try {
+    console.log('[API] %s %s', options.method || 'GET', endpoint)
+    if (options.body) {
+      console.log('[API] Request body:', JSON.parse(options.body))
+    }
+
     const response = await fetch(url, config)
     const data = await response.json()
 
+    console.log('[API] Response:', response.status, data)
+
     if (!response.ok) {
-      return { success: false, error: data.error || 'Request failed', data: null }
+      const error = new Error(data.error || 'Request failed')
+      error.status = response.status
+      error.data = data
+      throw error
     }
 
     return data
   } catch (error) {
-    return { success: false, error: error.message || 'Network error', data: null }
+    console.error('[API] Error:', error)
+    throw error
   }
 }
 

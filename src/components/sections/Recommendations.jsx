@@ -1,135 +1,171 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  fetchRecommendations,
-  markRecommendationFollowed,
-} from '../../services/recommendations'
+import { useQuery } from '@tanstack/react-query'
+import { fetchExamRecommendations } from '../../services/recommendations'
 
+/**
+ * STRICT UI: Card-based list from Gemini JSON ONLY
+ * 
+ * No text generation, no conditional display, no fallback text
+ * Frontend is ONLY a renderer of Gemini cards
+ */
 
-export function Recommendations() {
-  const queryClient = useQueryClient()
-
-  const recsQuery = useQuery({
-    queryKey: ['recommendations'],
-    queryFn: async () => fetchRecommendations({ activeOnly: true }),
-  })
-
-  const followMutation = useMutation({
-    mutationFn: markRecommendationFollowed,
-    onSuccess() {
-      queryClient.invalidateQueries({ queryKey: ['recommendations'] })
-    },
-  })
-
-  const items =
-    recsQuery.data?.success && Array.isArray(recsQuery.data.data)
-      ? recsQuery.data.data
-      : []
-
+function RecommendationCard({ card }) {
+  // Normalize priority to lowercase for comparison
+  const priority = card.priority?.toLowerCase() || 'low'
+  
   return (
-    <div className="space-y-4">
-      <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold text-[#E17B5F]">Recommendations</h2>
-          <p className="text-xs text-[#8D8A86]">
-            Generated from your mock performance trends.
-          </p>
+    <article className="rounded-xl border border-[#E7E5E4] bg-white p-5 space-y-3 shadow-sm hover:shadow-md transition-shadow">
+      {/* Priority Badge + Title + Metadata */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-[#2D3436] text-base mb-1">{card.subject}</h3>
         </div>
-        <button
-          type="button"
-          className="inline-flex items-center rounded-lg border border-[#F2D5C8] px-3 py-1.5 text-xs font-medium text-[#7A7068] hover:bg-[#FFF5F0] bg-white shadow-sm"
+        <span
+          className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap flex-shrink-0 ${
+            priority === 'high'
+              ? 'bg-red-100 text-red-700'
+              : priority === 'medium'
+              ? 'bg-amber-100 text-amber-700'
+              : 'bg-blue-100 text-blue-700'
+          }`}
         >
-          Refresh insights
-        </button>
-      </header>
+          {priority === 'high' ? '⚠ High' : priority === 'medium' ? '○ Medium' : '● Low'}
+        </span>
+      </div>
 
-      {recsQuery.isLoading && (
-        <p className="text-xs text-[#8D8A86]">Loading recommendations…</p>
-      )}
+      {/* Confidence + Data Points */}
+      <div className="flex items-center gap-3 text-xs text-[#78716C] bg-[#F5F5F4] px-3 py-2 rounded">
+        <span>{card.confidence}% confidence</span>
+        <span>•</span>
+        <span>{card.dataPoints} data points</span>
+      </div>
 
-      <section className="space-y-3">
-        {items.map(item => {
-          const itemId = item.id || item.recommendation_id
-          const focusArea = item.focusArea || item.focus_area
-          const priority = item.priority?.toLowerCase() || 'medium'
-          const confidenceScore = item.confidenceScore || item.confidence_score || 0
-          const dataPointCount = item.dataPointCount || item.data_point_count || 0
-          const actionSteps = item.actionSteps || item.action_steps || []
-          const generatedAt = item.generatedAt || item.generated_at
+      {/* Why This Matters */}
+      <div>
+        <p className="text-xs text-[#8D8A86] font-semibold uppercase tracking-wide mb-1">
+          Why this matters
+        </p>
+        <p className="text-sm text-[#57534E] leading-snug">{card.why}</p>
+      </div>
 
-          return (
-            <article
-              key={itemId}
-              className="rounded-xl border border-[#E7E5E4] bg-white p-5 space-y-4 hover:-translate-y-1 hover:border-blue-600 transition-transform"
-            >
-              <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span
-                    className={
-                      'inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold text-white ' +
-                      (priority === 'high'
-                        ? 'bg-red-600'
-                        : priority === 'medium'
-                        ? 'bg-amber-600'
-                        : 'bg-blue-600')
-                    }
-                  >
-                    {priority.charAt(0).toUpperCase() + priority.slice(1)} priority
-                  </span>
-                  <h3 className="text-sm font-semibold text-[#2D3436]">{focusArea}</h3>
-                </div>
-                <p className="text-[11px] text-[#8D8A86]">
-                  {Math.round(confidenceScore)}% confidence · {dataPointCount} data points
-                </p>
-              </header>
-
-              <div className="space-y-3 text-sm">
-                <div>
-                  <p className="text-[11px] font-semibold tracking-[0.16em] text-[#78716C] uppercase">
-                    Why this matters
-                  </p>
-                  <p className="mt-1 text-[#57534E]">{item.reasoning}</p>
-                </div>
-
-                {actionSteps.length > 0 && (
-                  <div>
-                    <p className="text-[11px] font-semibold tracking-[0.16em] text-[#78716C] uppercase">
-                      Action steps
-                    </p>
-                    <ol className="mt-1 list-decimal list-inside space-y-1 text-[#57534E]">
-                      {actionSteps.map((step, idx) => (
-                        <li key={idx}>{step}</li>
-                      ))}
-                    </ol>
-                  </div>
-                )}
-              </div>
-
-              <footer className="flex items-center justify-between pt-2 border-t border-[#E7E5E4]">
-                <p className="text-[11px] text-[#A8A29E]">
-                  Generated {generatedAt ? new Date(generatedAt).toLocaleDateString() : 'Recently'}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => followMutation.mutate(itemId)}
-                  className="inline-flex items-center rounded-lg border border-[#E7E5E4] px-3 py-1.5 text-xs font-medium text-[#57534E] hover:bg-[#F5F5F4]"
-                >
-                  Mark as followed
-                </button>
-              </footer>
-            </article>
-          )
-        })}
-
-        {!recsQuery.isLoading && items.length === 0 && (
-          <article className="rounded-xl border border-dashed border-[#D6D3D1] bg-[#F5F5F4] p-8 text-center space-y-2">
-            <p className="text-sm font-semibold">No live recommendations yet</p>
-            <p className="text-xs text-[#78716C]">
-              Upload a mock test or add question attempts to unlock personalized guidance.
-            </p>
-          </article>
-        )}
-      </section>
-    </div>
+      {/* Action Steps */}
+      <div>
+        <p className="text-xs text-[#8D8A86] font-semibold uppercase tracking-wide mb-2">
+          Action steps
+        </p>
+        <ul className="space-y-1.5">
+          {card.actions && card.actions.map((action, idx) => (
+            <li key={idx} className="flex items-start gap-2.5 text-sm text-[#57534E]">
+              <span className="text-[#E17B5F] font-bold mt-0.5 flex-shrink-0">→</span>
+              <span>{action}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </article>
   )
 }
 
+export function Recommendations() {
+  const query = useQuery({
+    queryKey: ['recommendations'],
+    queryFn: fetchExamRecommendations,
+    staleTime: 60000,
+    gcTime: 300000,
+  })
+
+  // Loading state
+  if (query.isLoading) {
+    return (
+      <div className="space-y-4">
+        <header>
+          <h2 className="text-base font-semibold text-[#E17B5F]">Insights</h2>
+          <p className="text-xs text-[#8D8A86]">Personalized exam preparation analysis</p>
+        </header>
+        <div className="space-y-3">
+          {[1, 2].map((i) => (
+            <div
+              key={i}
+              className="rounded-xl border border-[#E7E5E4] bg-white p-5 space-y-3 animate-pulse"
+            >
+              <div className="h-6 bg-[#E7E5E4] rounded w-3/4" />
+              <div className="h-4 bg-[#E7E5E4] rounded w-full" />
+              <div className="h-4 bg-[#E7E5E4] rounded w-5/6" />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (query.isError) {
+    return (
+      <div className="space-y-4">
+        <header>
+          <h2 className="text-base font-semibold text-[#E17B5F]">Insights</h2>
+          <p className="text-xs text-[#8D8A86]">Personalized exam preparation analysis</p>
+        </header>
+        <article className="rounded-xl border border-dashed border-red-300 bg-red-50 p-6 text-center space-y-2">
+          <p className="text-sm font-semibold text-red-900">Unable to load recommendations</p>
+          <p className="text-xs text-red-700">{query.error?.message || 'Try uploading a test'}</p>
+        </article>
+      </div>
+    )
+  }
+
+  const recommendation = query.data?.data
+  const cards = recommendation?.cards || []
+  const status = recommendation?.status || 'INSUFFICIENT_DATA'
+
+  // INSUFFICIENT_DATA: No tests at all
+  if (status === 'INSUFFICIENT_DATA') {
+    return (
+      <div className="space-y-4">
+        <header>
+          <h2 className="text-base font-semibold text-[#E17B5F]">Insights</h2>
+          <p className="text-xs text-[#8D8A86]">Personalized exam preparation analysis</p>
+        </header>
+        <article className="rounded-xl border border-dashed border-[#D6D3D1] bg-[#F5F5F4] p-8 text-center space-y-2">
+          <p className="text-sm font-semibold text-[#2D3436]">Upload a test to get started</p>
+          <p className="text-xs text-[#78716C]">
+            Upload your first test attempt to see personalized insights.
+          </p>
+        </article>
+      </div>
+    )
+  }
+
+  // HAS_RECOMMENDATIONS: Tests exist, render only if cards generated
+  // Empty array = no meaningful patterns (not an error state)
+  if (cards.length === 0) {
+    return (
+      <div className="space-y-4">
+        <header>
+          <h2 className="text-base font-semibold text-[#E17B5F]">Insights</h2>
+          <p className="text-xs text-[#8D8A86]">Personalized exam preparation analysis</p>
+        </header>
+        <article className="rounded-xl border border-dashed border-[#D6D3D1] bg-[#F5F5F4] p-8 text-center space-y-2">
+          <p className="text-sm font-semibold text-[#2D3436]">No significant patterns yet</p>
+          <p className="text-xs text-[#78716C]">
+            Upload more tests to reveal performance patterns.
+          </p>
+        </article>
+      </div>
+    )
+  }
+
+  // Render cards
+  return (
+    <div className="space-y-4">
+      <header>
+        <h2 className="text-base font-semibold text-[#E17B5F]">Insights</h2>
+        <p className="text-xs text-[#8D8A86]">Personalized exam preparation analysis</p>
+      </header>
+      <div className="grid gap-4 lg:grid-cols-1">
+        {cards.map((card, idx) => (
+          <RecommendationCard key={idx} card={card} />
+        ))}
+      </div>
+    </div>
+  )
+}

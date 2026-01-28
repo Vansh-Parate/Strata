@@ -54,6 +54,14 @@ export function UploadTestModal({ isOpen, onClose, onFileUploadSuccess }) {
 
   const mutation = useMutation({
     mutationFn: async ({ file, formData }) => {
+      console.log('[UPLOAD_MODAL] Starting upload:', {
+        fileName: file.name,
+        fileSize: file.size,
+        testName: formData.testName,
+        testDate: formData.testDate,
+        examType: formData.examType,
+        source: formData.source,
+      })
       return uploadTest(file, {
         testName: formData.testName,
         testDate: formData.testDate,
@@ -62,6 +70,18 @@ export function UploadTestModal({ isOpen, onClose, onFileUploadSuccess }) {
       })
     },
     onSuccess: (response) => {
+      console.log('[UPLOAD_MODAL] Upload successful:', response)
+      
+      // Verify success
+      if (!response.success) {
+        console.error('[UPLOAD_MODAL] Backend returned error despite 200 status:', response.error)
+        setErrors(prev => ({
+          ...prev,
+          file: response.error || 'Upload failed',
+        }))
+        return
+      }
+      
       setShowSuccessToast(true)
       
       // Call the callback with file data
@@ -79,12 +99,13 @@ export function UploadTestModal({ isOpen, onClose, onFileUploadSuccess }) {
       
       // Invalidate queries to refresh dashboard
       queryClient.invalidateQueries({ queryKey: ['summary'] })
+      queryClient.invalidateQueries({ queryKey: ['test-sessions'] })
       queryClient.invalidateQueries({ queryKey: ['recommendations'] })
       queryClient.invalidateQueries({ queryKey: ['attempts'] })
       queryClient.invalidateQueries({ queryKey: ['topic-mastery'] })
       queryClient.invalidateQueries({ queryKey: ['attempt-history'] })
       
-      // Show validation errors if any
+      // Show validation errors if any (non-fatal warnings)
       if (response.data?.validationErrors && response.data.validationErrors.length > 0) {
         setErrors(prev => ({
           ...prev,
@@ -98,12 +119,28 @@ export function UploadTestModal({ isOpen, onClose, onFileUploadSuccess }) {
       }, 2000)
     },
     onError: (error) => {
-      const errorMessage = error.response?.data?.error || error.message || 'Upload failed'
-      const errorMessages = errorMessage.split('; ')
-      setErrors({ ...errors, file: errorMessages[0] })
-      if (errorMessages.length > 1) {
-        setErrors(prev => ({ ...prev, fileValidation: errorMessages.slice(1) }))
+      console.error('[UPLOAD_MODAL] Upload failed:', error)
+      
+      // Extract error message from different possible sources
+      let errorMessage = error.message || 'Upload failed'
+      let validationErrors = []
+      
+      // Check if it's an API error with data field
+      if (error.data?.error) {
+        errorMessage = error.data.error
       }
+      
+      // Check if backend returned validation errors
+      if (error.data?.data?.validationErrors && Array.isArray(error.data.data.validationErrors)) {
+        validationErrors = error.data.data.validationErrors
+      }
+      
+      // Display main error
+      setErrors(prev => ({
+        ...prev,
+        file: errorMessage,
+        fileValidation: validationErrors.length > 0 ? validationErrors : undefined,
+      }))
     },
   })
 

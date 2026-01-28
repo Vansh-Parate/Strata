@@ -1,6 +1,3 @@
-// Prisma schema for Exam Analytics Platform
-// Based on context2.md database design
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,49 +7,35 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum MistakeType {
-  conceptual
-  calculation
-  misread
-  guess
-}
-
-enum Priority {
-  high
-  medium
-  low
-}
-
 model User {
-  id          String   @id @default(uuid())
-  email       String   @unique
-  name        String?
-  password    String?  // Hashed password for email/password auth
-  googleId    String?  @unique // Google OAuth ID
-  preferences Json?    // JSONB for flexible settings
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  attempts        QuestionAttempt[]
-  recommendations Recommendation[]
-  testSessions    TestSession[]
+  id                String            @id @default(uuid())
+  email             String            @unique
+  name              String?
+  password          String?
+  googleId          String?           @unique
+  preferences       Json?
+  activeExamType    String?           @map("active_exam_type")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  attempts          QuestionAttempt[]
+  recommendations   Recommendation[]
+  testSessions      TestSession[]
 
   @@map("users")
 }
 
 model QuestionAttempt {
-  id                String      @id @default(uuid()) @map("attempt_id")
-  userId            String      @map("user_id")
-  questionMetadata  Json        @map("question_metadata") // JSONB: topic, subtopic, difficulty, skills_tags[]
-  correctness       Boolean
-  confidenceRating  Int         @map("confidence_rating") // 1-5
-  timeTakenSeconds  Int         @map("time_taken_seconds")
-  mistakeType       MistakeType? @map("mistake_type")
-  testSessionId     String?     @map("test_session_id")
-  attemptedAt       DateTime    @default(now()) @map("attempted_at")
-
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  testSession TestSession? @relation(fields: [testSessionId], references: [id])
+  id               String       @id @default(uuid()) @map("attempt_id")
+  userId           String       @map("user_id")
+  questionMetadata Json         @map("question_metadata")
+  correctness      Boolean
+  confidenceRating Int          @map("confidence_rating")
+  timeTakenSeconds Int          @map("time_taken_seconds")
+  mistakeType      MistakeType? @map("mistake_type")
+  testSessionId    String?      @map("test_session_id")
+  attemptedAt      DateTime     @default(now()) @map("attempted_at")
+  testSession      TestSession? @relation(fields: [testSessionId], references: [id])
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, attemptedAt])
   @@index([testSessionId])
@@ -62,38 +45,43 @@ model QuestionAttempt {
 model Recommendation {
   id              String    @id @default(uuid()) @map("recommendation_id")
   userId          String    @map("user_id")
+  examType        String    @map("exam_type")
+  // Card array: [{ priority, topic, subject, confidence, dataPoints, why, actions }]
+  cards           Json      @default("[]")
+  // Status: INSUFFICIENT_DATA | NO_SIGNIFICANT_RISKS | HAS_RECOMMENDATIONS
+  status          String    @default("INSUFFICIENT_DATA")
+  // Evidence: aggregated metrics (for audit trail)
+  evidence        Json      @default("{}")
   generatedAt     DateTime  @default(now()) @map("generated_at")
-  focusArea       String    @map("focus_area")
-  priority        Priority
-  reasoning       String
-  evidence        Json      // JSONB: all data points that led to this
-  actionSteps     String[]  @map("action_steps")
-  confidenceScore Int       @map("confidence_score") // 0-100
-  dataPointCount  Int       @map("data_point_count")
-  followed        Boolean   @default(false)
-  followedAt      DateTime? @map("followed_at")
-  outcomeImproved Boolean?  @map("outcome_improved")
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  // Unique per (user, examType) - ONE recommendation per exam per user
+  @@unique([userId, examType], name: "userId_examType")
+  @@index([userId, examType])
   @@index([userId, generatedAt])
   @@map("recommendations")
 }
 
 model TestSession {
-  id            String   @id @default(uuid()) @map("session_id")
-  userId        String   @map("user_id")
-  testName      String   @map("test_name")
-  testDate      DateTime @map("test_date")
-  examType      String?  @map("exam_type")
-  source        String?  @map("source")
-  overallScore  Float?   @map("overall_score")
-  totalQuestions Int     @map("total_questions")
-  totalTime     Int      @map("total_time") // in seconds
-
-  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  attempts QuestionAttempt[]
+  id             String            @id @default(uuid()) @map("session_id")
+  userId         String            @map("user_id")
+  testName       String            @map("test_name")
+  testDate       DateTime          @map("test_date")
+  examType       String?           @map("exam_type")
+  source         String?           @map("source")
+  overallScore   Float?            @map("overall_score")
+  totalQuestions Int               @map("total_questions")
+  totalTime      Int               @map("total_time")
+  attempts       QuestionAttempt[]
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, testDate])
   @@map("test_sessions")
+}
+
+enum MistakeType {
+  conceptual
+  calculation
+  misread
+  guess
 }
