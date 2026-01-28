@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { UploadTestModal } from './UploadTestModal'
 
-export function UploadTestButton() {
+export function UploadTestButton({ onFileUploadSuccess }) {
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   return (
@@ -16,7 +16,7 @@ export function UploadTestButton() {
         </svg>
         Upload Test
       </button>
-      <UploadTestModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <UploadTestModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onFileUploadSuccess={onFileUploadSuccess} />
     </>
   )
 }
